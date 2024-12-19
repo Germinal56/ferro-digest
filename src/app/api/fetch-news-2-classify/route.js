@@ -25,8 +25,7 @@ export async function GET(request) {
   }
 
   // Get the ISO 8601 date for 20 days ago and 48 hours ago
-  const fromDate = new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString();
-  const toDate = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+  const fromDate = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
 
   try {
     const articlesSet = new Set(); // To track unique article URLs
@@ -40,7 +39,6 @@ export async function GET(request) {
           sortBy: "relevancy", // Sort articles by relevancy
           apiKey: NEWS_API_KEY, // API key
           from: fromDate, // Articles not older than 48 hours
-          to: toDate, // Articles not older than 48 hours
           page: page.toString(), // Current page
           language: "en",
         };

@@ -4,11 +4,14 @@ import { FormEvent } from "react";
 
 interface SearchBarProps {
   onSearch: (keywords: string) => Promise<void>;
+  disabled?: boolean;
 }
 
-export default function SearchBar({ onSearch }: SearchBarProps) {
+export default function SearchBar({ onSearch, disabled }: SearchBarProps) {
   const handleSearch = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (disabled) return;
+    
     const form = e.target as HTMLFormElement;
     const input = form.querySelector("textarea") as HTMLTextAreaElement;
 
@@ -19,14 +22,15 @@ export default function SearchBar({ onSearch }: SearchBarProps) {
   };
 
   return (
-    <form onSubmit={handleSearch} style={{ marginBottom: "20px" }}>
+    <form onSubmit={handleSearch} style={{ marginBottom: "20px" }} className="flex flex-col-2">
       <textarea
-        placeholder="Enter keywords separated by commas..."
+        placeholder='Enter keywords separated by commas... use AND and OR and " " for exact matches, i.e. bitcoin AND "ethereum"'
         rows={1}
+        disabled={disabled}
         style={{
           padding: "10px",
           width: "75vw",
-          height: "2rem",
+          height: "4rem",
           resize: "vertical",
           marginRight: "10px",
           color: "#000",
@@ -37,13 +41,15 @@ export default function SearchBar({ onSearch }: SearchBarProps) {
       />
       <button
         type="submit"
+        disabled={disabled}
         style={{
           padding: "10px 20px",
-          backgroundColor: "#0070f3",
+          marginBottom: "auto",
+          backgroundColor: disabled ? "#aaa" : "#0070f3",
           color: "#fff",
           border: "none",
           borderRadius: "5px",
-          cursor: "pointer",
+          cursor: disabled ? "not-allowed" : "pointer",
         }}
       >
         Search
