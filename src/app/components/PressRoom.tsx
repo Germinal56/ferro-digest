@@ -9,7 +9,7 @@ interface PressRoomProps {
 
 // Default LinkedIn post prompt
 const defaultSummaryPrompt = `You are a news outlet that has to select and filter information based on these topics: "Effects of Technology on Children", "Effects of Usage of Technology in People". The texts selected should be relevant for an outlet that wants to promote the aware usage of technology and protect the people and most of all the children from misuse. Present only information that can be interesting for conscious parents that want to educate their children in the best way possible and want to get informed about the risks and opportunities of technology.`
-const defaultPrompt = `Write a post that encourages thoughtful engagement and reflection on how we consciously interact with technology, do it in Italian using the style of Francesco Costa`
+const defaultPrompt = `Write a post that encourages thoughtful engagement and reflection on how we consciously interact with technology, do it in Italian using the style of Francesco Costa. Leverage on the unique perspective of a single Italian father of a little girl living in Milan who studied neurosciences, business, travelled the world and currently works in the cleantech sector. He is an openminded, avid reader that always has interesting takes on things, especially good at reading why people act the way they do. Very optimist and good person with high culture. Try to make the connections he would make and to use his perspective.`
 
 export default function PressRoom({ initialArticles }: PressRoomProps) {
   const [articles, setArticles] = useState<Article[]>(initialArticles);
@@ -21,6 +21,8 @@ export default function PressRoom({ initialArticles }: PressRoomProps) {
 
   // New states for the post creation phase
   const [postPrompt, setPostPrompt] = useState(defaultPrompt);
+  const [platform, setPlatform] = useState("LinkedIn"); // Dropdown for platform
+  const [versions, setVersions] = useState(2); // Dropdown for versions
   const [posts, setPosts] = useState<string[]>([]); // Two generated posts
   const [selectedPostIndex, setSelectedPostIndex] = useState<number | null>(null);
 
@@ -38,8 +40,6 @@ export default function PressRoom({ initialArticles }: PressRoomProps) {
         setExtractionDone(true);
         setArticles([]);
       } else {
-        // If empty, show message but do not set extractionDone
-        // Just leave articles as is and show a message
         alert("Current articles don't have interesting facts. Go back to article selection.");
       }
     } catch (error) {
@@ -61,7 +61,6 @@ export default function PressRoom({ initialArticles }: PressRoomProps) {
     setExtractedList(newList);
   };
 
-  // Drag and Drop Handlers
   const onDragStart = (e: React.DragEvent<HTMLLIElement>, index: number) => {
     setDraggedItemIndex(index);
   };
@@ -73,7 +72,6 @@ export default function PressRoom({ initialArticles }: PressRoomProps) {
   const onDrop = (e: React.DragEvent<HTMLLIElement>, dropIndex: number) => {
     e.preventDefault();
     if (draggedItemIndex === null) return;
-    // Reorder the list
     const newList = [...extractedList];
     const [draggedItem] = newList.splice(draggedItemIndex, 1);
     newList.splice(dropIndex, 0, draggedItem);
@@ -81,15 +79,12 @@ export default function PressRoom({ initialArticles }: PressRoomProps) {
     setDraggedItemIndex(null);
   };
 
-  const showExtractionUI = !extractionDone && articles.length > 0;
-
-  // New function to create posts
   const createPost = async () => {
     if (extractedList.length === 0 || !extractionDone) return;
-    // Send postPrompt and excerpts to new endpoint
     const body = {
-      prompt: postPrompt,
-      excerpts: extractedList
+      prompt: platform === "Twitter" ? `Write a Twitter thread: ${postPrompt}` : postPrompt,
+      excerpts: extractedList,
+      versions: versions,
     };
     setLoading(true);
     try {
@@ -99,7 +94,6 @@ export default function PressRoom({ initialArticles }: PressRoomProps) {
         body: JSON.stringify(body)
       });
       const data = await response.json();
-      // data.posts = [post1, post2]
       setPosts(data.posts || []);
     } catch (err) {
       console.error("Create post error:", err);
@@ -109,9 +103,8 @@ export default function PressRoom({ initialArticles }: PressRoomProps) {
   };
 
   const choosePost = (index: number) => {
-    // Choose one post, remove the other
     setSelectedPostIndex(index);
-    setPosts([posts[index]]); // Keep only the chosen one
+    setPosts([posts[index]]);
   };
 
   const copyToClipboard = () => {
@@ -122,16 +115,15 @@ export default function PressRoom({ initialArticles }: PressRoomProps) {
     });
   };
 
-  // Once we have posts generated, we go to step 5
+  const showExtractionUI = !extractionDone && articles.length > 0;
   const inChoosePostPhase = posts.length > 0;
 
   return (
-    <div style={{ padding: "36px", fontFamily: "Open Sans, sans-serif", fontWeight:"600"}}>
+    <div style={{ padding: "36px", fontFamily: "Open Sans, sans-serif", fontWeight: "600" }}>
       <h1 className="mb-2 font-black text-4xl">
         {!inChoosePostPhase ? (extractionDone ? "5. CREA POST" : "4. ESTRAPOLA INFORMAZIONI") : "5. SCEGLI E MODIFICA POST"}
       </h1>
 
-      {/* Custom Instruction Textarea for Extraction Phase */}
       {showExtractionUI && (
         <div style={{ marginBottom: "20px" }}>
           <textarea
@@ -173,7 +165,6 @@ export default function PressRoom({ initialArticles }: PressRoomProps) {
 
       {extractionDone && !inChoosePostPhase && (
         <div style={{ marginTop: "20px" }}>
-          {/* Once extractedList is available, show LinkedIn prompt textarea */}
           <textarea
             value={postPrompt}
             onChange={(e) => setPostPrompt(e.target.value)}
@@ -189,6 +180,40 @@ export default function PressRoom({ initialArticles }: PressRoomProps) {
             }}
           />
 
+          <div style={{ display: "flex", gap: "20px", marginBottom: "20px" }}>
+            <select
+              value={platform}
+              onChange={(e) => setPlatform(e.target.value)}
+              style={{
+                padding: "10px",
+                border: "1px solid #ccc",
+                borderRadius: "5px",
+              }}
+            >
+              <option value="LinkedIn">LinkedIn</option>
+              <option value="Twitter">Twitter</option>
+            </select>
+
+            <select
+              value={versions}
+              onChange={(e) => {
+                const value = parseInt(e.target.value);
+                if (!isNaN(value) && value >= 1 && value <= 4) {
+                  setVersions(value);
+                }
+              }}
+              style={{
+                padding: "10px",
+                border: "1px solid #ccc",
+                borderRadius: "5px",
+              }}
+            >
+              {[1, 2, 3, 4].map((num) => (
+                <option key={num} value={num}>{num} version{num > 1 ? "s" : ""}</option>
+              ))}
+            </select>
+          </div>
+
           <p>{extractedList.length} excerpts extracted:</p>
           <ul className="list-disc pl-5">
             {extractedList.map((item, index) => (
@@ -203,21 +228,21 @@ export default function PressRoom({ initialArticles }: PressRoomProps) {
               >
                 <button
                   onClick={() => removeItem(index)}
-                  style={{ backgroundColor: "red", color: "#fff", border: "none", borderRadius: "3px", padding: "5px"}}
+                  style={{ backgroundColor: "red", color: "#fff", border: "none", borderRadius: "3px", padding: "5px" }}
                 >
                   ✕
                 </button>
                 <button
                   onClick={() => index > 0 && moveItem(index, -1)}
                   disabled={index === 0}
-                  style={{ backgroundColor: "#0070f3", color: "#fff", border: "none", borderRadius: "3px", padding: "5px"}}
+                  style={{ backgroundColor: "#0070f3", color: "#fff", border: "none", borderRadius: "3px", padding: "5px" }}
                 >
                   ↑
                 </button>
                 <button
                   onClick={() => index < extractedList.length - 1 && moveItem(index, 1)}
                   disabled={index === extractedList.length - 1}
-                  style={{ backgroundColor: "#0070f3", color: "#fff", border: "none", borderRadius: "3px", padding: "5px"}}
+                  style={{ backgroundColor: "#0070f3", color: "#fff", border: "none", borderRadius: "3px", padding: "5px" }}
                 >
                   ↓
                 </button>
@@ -227,7 +252,6 @@ export default function PressRoom({ initialArticles }: PressRoomProps) {
             ))}
           </ul>
 
-          {/* Button to create post */}
           <button
             onClick={createPost}
             disabled={loading || extractedList.length === 0}
@@ -241,7 +265,7 @@ export default function PressRoom({ initialArticles }: PressRoomProps) {
               cursor: (loading || extractedList.length === 0) ? "not-allowed" : "pointer",
             }}
           >
-            Crea Post
+            Create Post
           </button>
         </div>
       )}
@@ -265,7 +289,7 @@ export default function PressRoom({ initialArticles }: PressRoomProps) {
                     cursor: "pointer",
                   }}
                 >
-                  Scegli Questo
+                  Choose This
                 </button>
               </div>
             ))}
@@ -274,8 +298,7 @@ export default function PressRoom({ initialArticles }: PressRoomProps) {
       )}
 
       {inChoosePostPhase && selectedPostIndex !== null && (
-        <div style={{ marginTop: "20px" }}>
-          <p>Modifica il post scelto:</p>
+        <div style={{ marginTop: "20px" }} className="flex flex-col-2">
           <textarea
             value={posts[0]}
             onChange={(e) => {
@@ -298,6 +321,7 @@ export default function PressRoom({ initialArticles }: PressRoomProps) {
             onClick={copyToClipboard}
             style={{
               padding: "10px 20px",
+              marginBottom: "auto",
               backgroundColor: "#0070f3",
               color: "#fff",
               border: "none",
@@ -305,7 +329,7 @@ export default function PressRoom({ initialArticles }: PressRoomProps) {
               cursor: "pointer",
             }}
           >
-            Copia negli appunti
+            Copy
           </button>
         </div>
       )}
@@ -328,8 +352,6 @@ export default function PressRoom({ initialArticles }: PressRoomProps) {
             Extract
           </button>
         )}
-
-        {/* The "Crea Post" button for extracted items is now inside the extractionDone && !inChoosePostPhase section above */}
       </div>
     </div>
   );

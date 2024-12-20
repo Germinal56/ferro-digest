@@ -77,7 +77,7 @@ export async function POST(request) {
     const prompt = `You are a helpful assistant.\n${customInstruction}\n. Avoid texts that may promote specific products with a specific brand.\n Extract interesting quotes, facts, novel ideas, and statistics from the given article content and return them as a strictly valid JSON array of strings. \nMake sure every item always explain a specific word that is being used or explains from which survey or source, this information comes from so every list item can stand on its own.\n Return no other text.\n\nArticle content:\n${item.full_content}`;
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o-2024-08-06",
+      model: "gpt-3.5-turbo-0125",                // or "gpt-4o"
       messages: [{ role: "user", content: prompt }],
     });
 

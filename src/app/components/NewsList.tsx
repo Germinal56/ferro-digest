@@ -63,7 +63,7 @@ export default function NewsList({ onPressRoom }: NewsListProps) {
     setSmartFilterLoading(true);
     setError(null);
     try {
-      const classifyRes = await classifyArticles(articles, 0.33);
+      const classifyRes = await classifyArticles(articles, 0.30);
       const newClassifiedArticles = classifyRes.classified_articles || [];
       if (newClassifiedArticles.length > 0) {
         setArticles(newClassifiedArticles);
