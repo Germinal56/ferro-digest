@@ -5,7 +5,11 @@ import { Article } from "../../types/news";
 import SearchBar from "./SearchBar";
 import { trainClassifier, classifyArticles } from "src/lib/ext-api";
 
-export default function NewsList() {
+interface NewsListProps {
+  onPressRoom: (articles: Article[]) => void;
+}
+
+export default function NewsList({ onPressRoom }: NewsListProps) {
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -13,32 +17,40 @@ export default function NewsList() {
   const [isTraining, setIsTraining] = useState(false);
   const [keywords, setKeywords] = useState<string[]>([]);
   const [expandedIndices, setExpandedIndices] = useState<Set<number>>(new Set());
-  const [phase, setPhase] = useState<number>(1); 
-  // phase 1: Inserisci parole chiave
-  // phase 2: Seleziona articoli rilevanti (≥200 articles fetched)
-  // phase 3: Valuta articoli recenti (after training is done)
+  const [phase, setPhase] = useState<number>(1);
+  const [classificationReady, setClassificationReady] = useState(false);
+  const [smartFilterLoading, setSmartFilterLoading] = useState(false); // Indicates Smart Filter request in progress
 
   const fetchArticles = async (keywordsString: string) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/fetch-news?keyword=${encodeURIComponent(keywordsString)}`);
+      const endpoint =
+        phase === 3
+          ? `/api/fetch-news-2-classify?keyword=${encodeURIComponent(keywordsString)}`
+          : `/api/fetch-news?keyword=${encodeURIComponent(keywordsString)}`;
+
+      const res = await fetch(endpoint);
       if (!res.ok) throw new Error("Failed to fetch news");
       const data = await res.json();
       const newArticles = data.articles || [];
       setArticles(newArticles);
+
       const kwArray = keywordsString
         .split(",")
         .map((keyword) => keyword.trim().toLowerCase())
         .filter(Boolean);
       setKeywords(kwArray);
 
-      console.log(kwArray)
-
-      if (newArticles.length >= 200) {
-        setPhase(2);
+      if (phase !== 3) {
+        if (newArticles.length >= 200) {
+          setPhase(2);
+        } else {
+          setPhase(1);
+        }
       } else {
-        setPhase(1);
+        // In phase 3, we just fetched classification articles
+        setClassificationReady(true);
       }
     } catch (err) {
       setError((err as Error).message);
@@ -47,25 +59,19 @@ export default function NewsList() {
     }
   };
 
-  const fetchArticlesForClassification = async () => {
-    setLoading(true);
+  const runSmartFilter = async () => {
+    setSmartFilterLoading(true);
     setError(null);
     try {
-      const keywordsString = keywords.join(",");
-      const res = await fetch(`/api/fetch-news-2-classify?keyword=${encodeURIComponent(keywordsString)}`);
-      if (!res.ok) throw new Error("Failed to fetch classification articles");
-      const data = await res.json();
-      const newArticles = data.articles || [];
-      setArticles(newArticles);
-
-      // Immediately classify these newly fetched articles
-      const classifyRes = await classifyArticles(newArticles, 0.7);
-      console.log("Classified Articles:", classifyRes.classified_articles);
-      setArticles(classifyRes.classified_articles || []);
+      const classifyRes = await classifyArticles(articles, 0.33);
+      const newClassifiedArticles = classifyRes.classified_articles || [];
+      if (newClassifiedArticles.length > 0) {
+        setArticles(newClassifiedArticles);
+      }
     } catch (err) {
       setError((err as Error).message);
     } finally {
-      setLoading(false);
+      setSmartFilterLoading(false);
     }
   };
 
@@ -87,6 +93,10 @@ export default function NewsList() {
       }
       return newSet;
     });
+  };
+
+  const removeArticle = (index: number) => {
+    setArticles((prevArticles) => prevArticles.filter((_, i) => i !== index));
   };
 
   const exportDataset = () => {
@@ -112,9 +122,8 @@ export default function NewsList() {
     try {
       const data = await trainClassifier(articles);
       alert(data.message || "Model trained successfully!");
-
       setPhase(3);
-      await fetchArticlesForClassification();
+      setClassificationReady(false);
     } catch (err) {
       setTrainError((err as Error).message);
     } finally {
@@ -128,39 +137,35 @@ export default function NewsList() {
     return text.replace(regex, (match) => `<mark>${match}</mark>`);
   };
 
-  // Determine the heading based on phase
   let headingText = "1. INSERISCI PAROLE CHIAVE";
   if (phase === 2) headingText = "2. SELEZIONA ARTICOLI RILEVANTI";
   else if (phase === 3) headingText = "3. VALUTA ARTICOLI RECENTI";
 
-  // Determine the instruction text for articles
   let instructionText = `${articles.length} articles found, MARK what you find RELEVANT ticking on the right`;
   if (phase === 3) {
     instructionText = `${articles.length} articles found, DESELECT those that you DISLIKE`;
   }
 
-  // New function to toggle phase to simulate training complete / going back
+  const selectedArticles = articles.filter((a) => a.label === 1);
+
   const toggleTrainingClassification = () => {
     if (phase === 3) {
-      // If we are in phase 3, revert to phase 1 (reset the state)
       setPhase(1);
       setArticles([]);
       setKeywords([]);
       setTrainError(null);
       setError(null);
+      setClassificationReady(false);
     } else {
-      // If we are in phase 1 or 2, jump to phase 3 (simulate training complete)
       setPhase(3);
-      // Optionally, refetch and classify here if desired, but to keep it simple,
-      // we just simulate the phase change.
+      setClassificationReady(false);
     }
   };
 
   return (
-    <div style={{ padding: "36px", fontFamily: "Open Sans, sans-serif", fontWeight:"600"}}>
+    <div style={{ padding: "36px", fontFamily: "Open Sans, sans-serif", fontWeight: "600" }}>
       <h1 className="mb-2 font-black text-4xl">{headingText}</h1>
-      <SearchBar onSearch={fetchArticles} disabled={isTraining || phase === 3} />
-      {/* Disable the search bar while training or after training (phase 3) */}
+      <SearchBar onSearch={fetchArticles} disabledTextarea={isTraining || phase === 3} />
 
       <p className="font-bold mb-4 text-green-700 text-2xl">{instructionText}</p>
 
@@ -197,18 +202,27 @@ export default function NewsList() {
                 </h3>
                 {article.source && article.source.name && (
                   <p className="text-sm text-gray-600">
-                    <strong>Source:</strong> {article.source.name} |{" "}
-                    <strong>Published:</strong> {new Date(article.publishedAt).toLocaleString()}
+                    <strong>Source:</strong> {article.source.name} | <strong>Published:</strong> {new Date(article.publishedAt).toLocaleString()}
                   </p>
                 )}
               </div>
 
-              <input
-                type="checkbox"
-                checked={article.label === 1}
-                onChange={() => toggleLabel(index)}
-                className="ml-2"
-              />
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={article.label === 1}
+                  onChange={() => toggleLabel(index)}
+                  style={{ transform: "scale(1.5)" }}
+                />
+
+                <button
+                  onClick={() => removeArticle(index)}
+                  aria-label="Remove article"
+                  className="text-red-500 hover:text-red-700 focus:outline-none"
+                >
+                  ✖
+                </button>
+              </div>
             </div>
 
             <div
@@ -244,7 +258,6 @@ export default function NewsList() {
       {trainError && <p className="text-red-500 mt-2">{trainError}</p>}
 
       <div style={{ position: "fixed", bottom: "20px", right: "20px" }}>
-        {/* Toggle Training/Classify Button */}
         <button
           onClick={toggleTrainingClassification}
           style={{
@@ -255,44 +268,80 @@ export default function NewsList() {
             border: "none",
             borderRadius: "5px",
             cursor: "pointer",
-            marginBottom: "auto",
           }}
         >
           {phase === 3 ? "Back to Trainer" : "Go to Classifier"}
         </button>
 
-        {/* Export Dataset Button */}
-        <button
-          onClick={exportDataset}
-          disabled={articles.length < 1}
-          style={{
-            marginRight: "10px",
-            padding: "10px 20px",
-            backgroundColor: articles.length < 1 ? "#aaa" : "#0070f3",
-            color: "#fff",
-            border: "none",
-            borderRadius: "5px",
-            cursor: articles.length < 1 ? "not-allowed" : "pointer",
-          }}
-        >
-          Export Dataset
-        </button>
+        {phase === 3 ? (
+          <>
+            {classificationReady && (
+              <button
+                onClick={runSmartFilter}
+                disabled={smartFilterLoading}
+                style={{
+                  marginRight: "10px",
+                  padding: "10px 20px",
+                  backgroundColor: smartFilterLoading ? "#ccc" : "#FFA500",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "5px",
+                  cursor: smartFilterLoading ? "not-allowed" : "pointer",
+                }}
+              >
+                Smart Filter
+              </button>
+            )}
 
-        {/* Train ML Button */}
-        <button
-          onClick={trainModel}
-          disabled={isTraining || articles.length < 200 || phase === 3}
-          style={{
-            padding: "10px 20px",
-            backgroundColor: (isTraining || articles.length < 200 || phase === 3) ? "#aaa" : "#0070f3",
-            color: "#fff",
-            border: "none",
-            borderRadius: "5px",
-            cursor: (isTraining || articles.length < 200 || phase === 3) ? "not-allowed" : "pointer",
-          }}
-        >
-          {isTraining ? "Training..." : "Train ML"}
-        </button>
+            <button
+              onClick={() => onPressRoom(selectedArticles)}
+              disabled={selectedArticles.length < 1 || selectedArticles.length > 15}
+              style={{
+                padding: "10px 20px",
+                backgroundColor: selectedArticles.length > 0 && selectedArticles.length <= 15 ? "#0070f3" : "#aaa",
+                color: "#fff",
+                border: "none",
+                borderRadius: "5px",
+                cursor: selectedArticles.length > 0 && selectedArticles.length <= 15 ? "pointer" : "not-allowed",
+              }}
+            >
+              Press Room
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              onClick={exportDataset}
+              disabled={articles.length < 1}
+              style={{
+                marginRight: "10px",
+                padding: "10px 20px",
+                backgroundColor: articles.length < 1 ? "#aaa" : "#0070f3",
+                color: "#fff",
+                border: "none",
+                borderRadius: "5px",
+                cursor: articles.length < 1 ? "not-allowed" : "pointer",
+              }}
+            >
+              Export Dataset
+            </button>
+
+            <button
+              onClick={trainModel}
+              disabled={isTraining || articles.length < 200 || phase === 3}
+              style={{
+                padding: "10px 20px",
+                backgroundColor: (isTraining || articles.length < 200 || phase === 3) ? "#aaa" : "#0070f3",
+                color: "#fff",
+                border: "none",
+                borderRadius: "5px",
+                cursor: (isTraining || articles.length < 200 || phase === 3) ? "not-allowed" : "pointer",
+              }}
+            >
+              {isTraining ? "Training..." : "Train ML"}
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

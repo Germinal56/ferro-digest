@@ -33,10 +33,10 @@ export async function GET(request) {
 
     // Fetch news for each keyword
     for (const keyword of keywordList) {
-      for (let page = 1; page <= 3; page++) {
+      for (let page = 1; page <= 4; page++) {
         const params = {
           q: keyword, // Search query
-          sortBy: "relevancy", // Sort articles by relevancy
+          sortBy: "popularity", // Sort articles by relevancy
           apiKey: NEWS_API_KEY, // API key
           from: fromDate, // Articles not older than 48 hours
           page: page.toString(), // Current page
@@ -53,7 +53,7 @@ export async function GET(request) {
               // Use article's URL as a unique identifier
               if (!articlesSet.has(article.url)) {
                 articlesSet.add(article.url);
-                combinedArticles.push({ ...article, label: 0 }); // Add label: 0
+                combinedArticles.push({ ...article, label: 1 }); // Add label: 0
               }
             }
           }

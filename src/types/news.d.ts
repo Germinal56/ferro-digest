@@ -1,13 +1,16 @@
 export interface Article {
-    source: { name: string };
-    author?: string;
+    source: {
+      id: string | null;
+      name: string | null;
+    };
+    author?: string | null;
     title: string;
     description?: string;
     url: string;
-    urlToImage?: string;
+    urlToImage?: string | null;
     publishedAt: string;
     content?: string;
-    label: number;
+    label: number; // 0 or 1
 }
 
 export interface NewsAPIResponse {
